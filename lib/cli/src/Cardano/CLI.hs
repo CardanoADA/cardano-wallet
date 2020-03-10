@@ -778,8 +778,7 @@ cmdWallet = command "wallet" $ info (helper <*> cmds) $ mempty
   where
     cmds = subparser $ mempty
         <> cmdWalletList @t
-        <> cmdWalletCreateFromMnemonic @t
-        <> cmdWalletCreateFromPublicKey @t
+        <> cmdWalletCreate @t
         <> cmdWalletGet @t
         <> cmdWalletUpdate @t
         <> cmdWalletDelete @t
@@ -800,6 +799,16 @@ cmdWalletList = command "list" $ info (helper <*> cmd) $ mempty
     exec (WalletListArgs wPort) = do
         runClient wPort Aeson.encodePretty $ listWallets (walletClient @t)
 
+cmdWalletCreate
+    :: forall t. (DecodeAddress t, EncodeAddress t)
+    => Mod CommandFields (IO ())
+cmdWalletCreate = command "create" $ info (helper <*> cmds) $ mempty
+    <> progDesc "Create a new wallet."
+  where
+    cmds = subparser $ mempty
+        <> cmdWalletCreateFromMnemonic @t
+        <> cmdWalletCreateFromPublicKey @t
+
 -- | Arguments for 'wallet create' command
 data WalletCreateArgs = WalletCreateArgs
     { _port :: Port "Wallet"
@@ -811,7 +820,7 @@ cmdWalletCreateFromMnemonic
     :: forall t. (DecodeAddress t, EncodeAddress t)
     => Mod CommandFields (IO ())
 cmdWalletCreateFromMnemonic =
-    command "create from-mnemonic" $ info (helper <*> cmd) $ mempty
+    command "from-mnemonic" $ info (helper <*> cmd) $ mempty
     <> progDesc "Create a new wallet using a mnemonic."
   where
     cmd = fmap exec $ WalletCreateArgs
@@ -852,7 +861,7 @@ cmdWalletCreateFromPublicKey
     :: forall t. (DecodeAddress t, EncodeAddress t)
     => Mod CommandFields (IO ())
 cmdWalletCreateFromPublicKey =
-    command "create from-public-key" $ info (helper <*> cmd) $ mempty
+    command "from-public-key" $ info (helper <*> cmd) $ mempty
     <> progDesc "Create a wallet using a public account key."
   where
     cmd = fmap exec $ WalletCreateFromPublicKeyArgs
@@ -1524,7 +1533,7 @@ walletNameArgument = argumentT $ mempty
 accPubKeyArgument :: Parser ApiAccountPublicKey
 accPubKeyArgument = argumentT $ mempty
     <> metavar "ACCOUNT_PUBLIC_KEY"
-    <> help "128-character hex-encoded public account key."
+    <> help "64-byte (128-character) hex-encoded public account key."
 
 -- | <payload=BINARY_BLOB>
 transactionSubmitPayloadArgument :: Parser PostExternalTransactionData
