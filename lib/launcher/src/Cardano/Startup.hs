@@ -40,6 +40,7 @@ import Data.Text.Class
     ( ToText (..) )
 import System.IO
     ( Handle
+    , hIsEOF
     , hIsOpen
     , hSetEncoding
     , mkTextEncoding
@@ -107,7 +108,9 @@ withShutdownHandler tr = withShutdownHandler' tr stdin
 -- | A variant of 'withShutdownHandler' where the handle to read can be chosen.
 withShutdownHandler' :: Tracer IO ShutdownHandlerLog -> Handle -> IO a -> IO (Maybe a)
 withShutdownHandler' tr h action = do
-    enabled <- hIsOpen h
+    open <- hIsOpen h
+    alreadyEOF <- hIsEOF h
+    let enabled = open && not alreadyEOF
     traceWith tr $ MsgShutdownHandler enabled
     let with
             | enabled = fmap eitherToMaybe . race readerLoop
