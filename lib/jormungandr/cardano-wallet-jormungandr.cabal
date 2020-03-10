@@ -233,8 +233,7 @@ test-suite integration
     , warp
     , yaml
   build-tools:
-      nodejs
-    , cardano-wallet-jormungandr
+      cardano-wallet-jormungandr
   type:
      exitcode-stdio-1.0
   hs-source-dirs:
