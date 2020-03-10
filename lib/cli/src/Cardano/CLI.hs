@@ -778,7 +778,7 @@ cmdWallet = command "wallet" $ info (helper <*> cmds) $ mempty
   where
     cmds = subparser $ mempty
         <> cmdWalletList @t
-        <> cmdWalletCreate @t
+        <> cmdWalletCreateFromMnemonic @t
         <> cmdWalletCreateFromPublicKey @t
         <> cmdWalletGet @t
         <> cmdWalletUpdate @t
@@ -807,11 +807,12 @@ data WalletCreateArgs = WalletCreateArgs
     , _gap :: AddressPoolGap
     }
 
-cmdWalletCreate
+cmdWalletCreateFromMnemonic
     :: forall t. (DecodeAddress t, EncodeAddress t)
     => Mod CommandFields (IO ())
-cmdWalletCreate = command "create" $ info (helper <*> cmd) $ mempty
-    <> progDesc "Create a new wallet using a sequential address scheme."
+cmdWalletCreateFromMnemonic =
+    command "create from-mnemonic" $ info (helper <*> cmd) $ mempty
+    <> progDesc "Create a new wallet using a mnemonic."
   where
     cmd = fmap exec $ WalletCreateArgs
         <$> portOption
