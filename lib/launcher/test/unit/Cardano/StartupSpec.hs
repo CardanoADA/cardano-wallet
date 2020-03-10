@@ -1,3 +1,6 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 -- |
 -- Copyright: © 2018-2020 IOHK
 -- License: Apache-2.0
@@ -16,11 +19,12 @@ import Control.Concurrent
     ( threadDelay )
 import Control.Concurrent.Async
     ( race )
+import Control.Concurrent.MVar
+    ( newEmptyMVar, putMVar, takeMVar )
 import Control.Exception
-    ( bracket, throwIO )
+    ( IOException, bracket, catch, throwIO )
 import Control.Tracer
     ( Tracer, nullTracer )
-import qualified Data.ByteString as BS
 import System.IO
     ( Handle, IOMode (..), hClose, stdin, withFile )
 import System.IO.Error
@@ -34,17 +38,28 @@ import Test.Utils.Trace
 import Test.Utils.Windows
     ( nullFileName )
 
+import qualified Data.ByteString as BS
+
 spec :: Spec
 spec = describe "withShutdownHandler" $ do
     let decisecond = 100000
 
     describe "sanity tests" $ do
+        -- read file handle, allowing interruptions on windows
+        let getChunk :: Handle -> IO BS.ByteString
+            getChunk h = do
+                v <- newEmptyMVar
+                (BS.hGet h 1000 >>= putMVar v . Right) `catch` (putMVar v . Left)
+                takeMVar v >>= \case
+                  Left (e :: IOException)  -> throwIO e
+                  Right bs -> pure bs
+
         it "race stdin" $ do
-            res <- race (BS.hGet stdin 1000) (threadDelay decisecond)
+            res <- race (getChunk stdin) (threadDelay decisecond)
             res `shouldBe` Right ()
 
         it "race pipe" $ withPipe $ \(a, _) -> do
-            res <- race (BS.hGet a 1000) (threadDelay decisecond)
+            res <- race (getChunk a) (threadDelay decisecond)
             res `shouldBe` Right ()
 
     it "action completes immediately" $ withPipe $ \(a, _) -> do
