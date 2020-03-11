@@ -120,6 +120,8 @@ import Cardano.Wallet.Api.Types
     , AllowedMnemonics
     , ApiEpochNumber
     , ApiMnemonicT (..)
+    , ApiNetworkInformation
+    , ApiNetworkParameters
     , ApiT (..)
     , ApiTxId (..)
     , DecodeAddress
@@ -263,8 +265,10 @@ import Options.Applicative.Help.Pretty
     ( string, vsep )
 import Options.Applicative.Types
     ( ReadM (..), readerAsk )
+import Servant
+    ( (:<|>) (..), (:>) )
 import Servant.Client
-    ( BaseUrl (..), ClientM, Scheme (..), mkClientEnv, runClientM )
+    ( BaseUrl (..), ClientM, Scheme (..), client, mkClientEnv, runClientM )
 import Servant.Client.Core
     ( ClientError (..), responseBody )
 import System.Console.ANSI
@@ -308,6 +312,7 @@ import System.IO
 import qualified Cardano.BM.Configuration.Model as CM
 import qualified Cardano.BM.Data.BackendKind as CM
 import qualified Cardano.Crypto.Wallet as CC
+import qualified Cardano.Wallet.Api as API
 import qualified Cardano.Wallet.Api.Types as API
 import qualified Cardano.Wallet.Primitive.AddressDerivation.Icarus as Icarus
 import qualified Cardano.Wallet.Primitive.AddressDerivation.Shelley as Shelley
@@ -1175,29 +1180,36 @@ cmdStakePoolList = command "list" $ info (helper <*> cmd) $ mempty
 -------------------------------------------------------------------------------}
 
 cmdNetwork
-    :: forall t. (DecodeAddress t, EncodeAddress t)
-    => Mod CommandFields (IO ())
+    :: Mod CommandFields (IO ())
 cmdNetwork = command "network" $ info (helper <*> cmds) $ mempty
     <> progDesc "Manage network."
   where
     cmds = subparser $ mempty
-        <> cmdNetworkInformation @t
-        <> cmdNetworkParameters @t
+        <> cmdNetworkInformation _networkInformation
+        <> cmdNetworkParameters  _networkParameters
+
+    _networkInformation
+        :<|> _networkParameters
+        :<|> _networkClock
+        = client (Proxy @("v2" :> API.Network))
 
 -- | Arguments for 'network information' command
 newtype NetworkInformationArgs = NetworkInformationArgs
     { _port :: Port "Wallet"
     }
 
+
 cmdNetworkInformation
-    :: forall t. (DecodeAddress t, EncodeAddress t)
-    => Mod CommandFields (IO ())
-cmdNetworkInformation = command "information" $ info (helper <*> cmd) $ mempty
-    <> progDesc "View network information."
+    :: ClientM ApiNetworkInformation
+    -> Mod CommandFields (IO ())
+cmdNetworkInformation clientM =
+    command "information" $ info (helper <*> cmd) $ mempty
+        <> progDesc "View network information."
   where
-    cmd = fmap exec $ NetworkInformationArgs <$> portOption
+    cmd = fmap exec $ NetworkInformationArgs
+        <$> portOption
     exec (NetworkInformationArgs wPort) = do
-        runClient wPort Aeson.encodePretty $ networkInformation (walletClient @t)
+        runClient wPort Aeson.encodePretty clientM
 
 -- | Arguments for 'network parameters' command
 data NetworkParametersArgs = NetworkParametersArgs
@@ -1206,17 +1218,17 @@ data NetworkParametersArgs = NetworkParametersArgs
     }
 
 cmdNetworkParameters
-    :: forall t. (DecodeAddress t, EncodeAddress t)
-    => Mod CommandFields (IO ())
-cmdNetworkParameters = command "parameters" $ info (helper <*> cmd) $ mempty
-    <> progDesc "View network parameters."
+    :: (ApiEpochNumber -> ClientM ApiNetworkParameters)
+    -> Mod CommandFields (IO ())
+cmdNetworkParameters clientM =
+    command "parameters" $ info (helper <*> cmd) $ mempty
+        <> progDesc "View network parameters."
   where
     cmd = fmap exec $ NetworkParametersArgs
         <$> portOption
         <*> epochArgument
     exec (NetworkParametersArgs wPort epoch) = do
-        runClient wPort Aeson.encodePretty $
-            networkParameters (walletClient @t) epoch
+        runClient wPort Aeson.encodePretty $ clientM epoch
 
 {-------------------------------------------------------------------------------
                             Commands - 'launch'
